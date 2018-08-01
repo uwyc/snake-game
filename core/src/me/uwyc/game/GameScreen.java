@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 
@@ -15,7 +16,8 @@ import com.badlogic.gdx.utils.Array;
  * @author wyc
  */
 public class GameScreen extends ScreenAdapter {
-    private static final int MOVEMENT = 32;
+    private static final int GRID_CELL = 32;
+    private static final int MOVEMENT = GRID_CELL;
     private static final float MOVE_TIME = .5F;
     private static final int LEFT = -1;
     private static final int RIGHT = 1;
@@ -33,15 +35,20 @@ public class GameScreen extends ScreenAdapter {
     private int snakeSrcX = MOVEMENT * 4;
     private int snakeSrcY = 0;
     private int snakeDirection = RIGHT;
+    private boolean directionSet = false;
 
+    private boolean hasHit = false;
     private boolean appleAvailable = false;
     private int appleX;
     private int appleY;
 
     private Array<BodyPart> snakeBody = new Array<BodyPart>();
 
+    private ShapeRenderer shapeRenderer;
+
     @Override
     public void show() {
+        shapeRenderer = new ShapeRenderer();
         batch = new SpriteBatch();
         snakeGraphics = new Texture("snake-graphics.png");
         snakeBody.add(new BodyPart(0, 0, MOVEMENT * 4, MOVEMENT * 2, RIGHT));
@@ -51,17 +58,19 @@ public class GameScreen extends ScreenAdapter {
     @Override
     public void render(float delta) {
         queryInput();
-        timer -= delta;
-        if (timer <= 0) {
-            timer = MOVE_TIME;
-            moveSnake();
-            checkForOutOfBounds();
-            updateSnakeBodyPosition();
-        }
+        updateSnake(delta);
         checkAppleCollision();
         checkAndPlaceApple();
+        clearScreen();
+        draw();
+    }
+
+    private void clearScreen() {
         Gdx.gl.glClearColor(Color.WHITE.r, Color.WHITE.g, Color.WHITE.b, Color.WHITE.a);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+    }
+
+    private void draw() {
         batch.begin();
         if (appleAvailable) {
             int appleSrcX = 0;
@@ -78,6 +87,20 @@ public class GameScreen extends ScreenAdapter {
         }
         batch.draw(snakeGraphics, snakeX, snakeY, snakeSrcX, snakeSrcY, MOVEMENT, MOVEMENT);
         batch.end();
+    }
+
+    private void updateSnake(float delta) {
+        if (!hasHit) {
+            timer -= delta;
+            if (timer <= 0) {
+                timer = MOVE_TIME;
+                moveSnake();
+                checkForOutOfBounds();
+                updateSnakeBodyPosition();
+                checkSnakeBodyCollision();
+                directionSet = false;
+            }
+        }
     }
 
     private void checkForOutOfBounds() {
@@ -123,22 +146,59 @@ public class GameScreen extends ScreenAdapter {
         }
     }
 
+    private void updateIfOppositeDirection(int newSnakeDirection, int oppositeDirection) {
+        if (snakeDirection != oppositeDirection) {
+            snakeDirection = newSnakeDirection;
+        }
+    }
+
+    private void updateDirection(int newSnakeDirection) {
+        if (!directionSet && snakeDirection != newSnakeDirection) {
+            directionSet = true;
+            switch (newSnakeDirection) {
+                case LEFT:
+                    updateIfOppositeDirection(newSnakeDirection, RIGHT);
+                    break;
+                case RIGHT:
+                    updateIfOppositeDirection(newSnakeDirection, LEFT);
+                    break;
+                case UP:
+                    updateIfOppositeDirection(newSnakeDirection, DOWN);
+                    break;
+                case DOWN:
+                    updateIfOppositeDirection(newSnakeDirection, UP);
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
     private void queryInput() {
         boolean lPressed = Gdx.input.isKeyPressed(Input.Keys.LEFT);
         boolean rPressed = Gdx.input.isKeyPressed(Input.Keys.RIGHT);
         boolean uPressed = Gdx.input.isKeyPressed(Input.Keys.UP);
         boolean dPressed = Gdx.input.isKeyPressed(Input.Keys.DOWN);
-        if (lPressed && snakeDirection != RIGHT) {
-            snakeDirection = LEFT;
+        if (lPressed) {
+            updateDirection(LEFT);
         }
-        if (rPressed && snakeDirection != LEFT) {
-            snakeDirection = RIGHT;
+        if (rPressed) {
+            updateDirection(RIGHT);
         }
-        if (uPressed && snakeDirection != DOWN) {
-            snakeDirection = UP;
+        if (uPressed) {
+            updateDirection(UP);
         }
-        if (dPressed && snakeDirection != UP) {
-            snakeDirection = DOWN;
+        if (dPressed) {
+            updateDirection(DOWN);
+        }
+    }
+
+    private void checkSnakeBodyCollision() {
+        for (BodyPart bodyPart : snakeBody) {
+            if (bodyPart.getX() == snakeX && bodyPart.getY() == snakeY) {
+                hasHit = true;
+                System.out.println("Hit!!!!");
+            }
         }
     }
 
